@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-text font-body antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+/* Scrollbar discreta */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3d444d;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-border rounded-xl shadow-card;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors
+      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
+  }
+  .btn-primary {
+    @apply bg-accent text-bg hover:bg-[#e3b341] font-semibold;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-text-secondary border border-border hover:text-text hover:border-text-secondary/50;
+  }
+  .input {
+    @apply w-full rounded-lg bg-surface-2 border border-border px-3 py-2 text-sm text-text
+      placeholder:text-text-secondary/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40;
+  }
+  .label {
+    @apply block text-xs font-medium text-text-secondary mb-1;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium;
+  }
+}
+
+/* Reduz animação se o usuário preferir */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

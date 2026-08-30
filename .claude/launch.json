@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "trader-diary-backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "backend.app:app", "--port", "8000"],
+      "port": 8000,
+      "url": "http://127.0.0.1:8000"
+    }
+  ]
+}

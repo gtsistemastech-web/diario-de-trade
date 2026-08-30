@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv
+.env
+
+# Javascript Node
+node_modules/
+npm-debug.log*
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database (local data)
+data/*.db
+data/*.db-bak
+data/*.db.bak
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Scratch files
+scratch/
+*.log
+logs/
