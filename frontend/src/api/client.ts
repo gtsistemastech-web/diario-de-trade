@@ -56,6 +56,9 @@ export const updateTrade = (id: string, trade: TradeInput) =>
 export const deleteTrade = (id: string) =>
   request<{ status: string }>(`/trades/${id}`, { method: 'DELETE' })
 
+export const deleteAllTrades = () =>
+  request<{ status: string; deleted: number }>('/trades', { method: 'DELETE' })
+
 export const getSummary = (params?: { from?: string; to?: string }) => {
   const qs = new URLSearchParams()
   if (params?.from) qs.set('from', params.from)

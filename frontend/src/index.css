@@ -45,6 +45,9 @@ body {
   .btn-ghost {
     @apply bg-transparent text-text-secondary border border-border hover:text-text hover:border-text-secondary/50;
   }
+  .btn-danger {
+    @apply bg-transparent text-down border border-down/40 hover:bg-down/10 hover:text-down;
+  }
   .input {
     @apply w-full rounded-lg bg-surface-2 border border-border px-3 py-2 text-sm text-text
       placeholder:text-text-secondary/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40;

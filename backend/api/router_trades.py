@@ -110,6 +110,17 @@ def api_delete_trade(trade_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/trades")
+def api_delete_all_trades():
+    """Apaga todas as operações cadastradas (mantém estratégias, plano e risco)."""
+    try:
+        n = db.delete_all_trades()
+        return {"status": "ok", "deleted": n}
+    except Exception as e:
+        logger.exception("Erro ao limpar todos os trades")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/trades/summary")
 def api_trades_summary(
     from_date: str | None = Query(None, alias="from"),

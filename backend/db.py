@@ -527,6 +527,18 @@ def delete_trade(trade_id: str) -> bool:
         conn.close()
 
 
+def delete_all_trades() -> int:
+    """Apaga todas as operações e zera o saldo corrente das contas."""
+    conn = get_db_connection()
+    try:
+        cur = conn.execute("DELETE FROM trades")
+        conn.execute("UPDATE accounts SET current_balance = 0, updated_at = ?", (_now_iso(),))
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()
+
+
 def _row_to_trade(row):
     if row is None:
         return None

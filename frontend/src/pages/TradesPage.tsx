@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, Plus, Upload } from 'lucide-react'
-import { createTrade, deleteTrade, listStrategies, listTrades, updateTrade } from '../api/client'
+import { Download, Plus, Trash2, Upload } from 'lucide-react'
+import { createTrade, deleteAllTrades, deleteTrade, listStrategies, listTrades, updateTrade } from '../api/client'
 import type { Strategy, Trade, TradeInput } from '../types'
 import TradeForm from '../components/TradeForm'
 import TradeTable from '../components/TradeTable'
@@ -59,6 +59,16 @@ export default function TradesPage() {
     }
   }
 
+  const handleClearAll = async () => {
+    if (!trades.length) return
+    const ok = confirm(
+      `Tem certeza que quer apagar TODAS as ${trades.length} operações?\n\nIsso não pode ser desfeito.`
+    )
+    if (!ok) return
+    await deleteAllTrades()
+    await load()
+  }
+
   const exportCSV = () => {
     const header = ['data', 'hora', 'ativo', 'direcao', 'entrada', 'saida', 'quantidade', 'resultado', 'corretagem', 'r_multiplo', 'estrategia', 'emocoes', 'notas', 'fonte']
     const rows = trades.map((t) => [
@@ -86,6 +96,14 @@ export default function TradesPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            className="btn btn-danger"
+            onClick={handleClearAll}
+            disabled={!trades.length}
+            title="Apaga todas as operações cadastradas"
+          >
+            <Trash2 size={16} /> Limpar tudo
+          </button>
           <button className="btn btn-ghost" onClick={exportCSV} disabled={!trades.length}>
             <Download size={16} /> Exportar
           </button>
