@@ -21,8 +21,8 @@ Thumbs.db
 
 # Database (local data)
 data/*.db
-data/*.db-bak
-data/*.db.bak
+data/*.db-bak*
+data/*.db.bak*
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
