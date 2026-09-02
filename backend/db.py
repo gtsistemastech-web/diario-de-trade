@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -10,8 +11,124 @@ logger = logging.getLogger(__name__)
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 DB_FILE = os.path.join(DB_DIR, "trader_diary.db")
 
+# Se DATABASE_URL estiver definida (ex: fornecida pelo Render ao conectar um
+# banco Postgres), o app usa Postgres. Caso contrário, cai no SQLite local
+# (comportamento original, ótimo para rodar na própria máquina).
+DATABASE_URL = os.environ.get("DATABASE_URL")
+IS_POSTGRES = bool(DATABASE_URL)
+
+if IS_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+
+    # Render às vezes fornece a URL com o esquema "postgres://", que o
+    # psycopg2 aceita normalmente — nenhuma conversão é necessária.
+
+
+class Row:
+    """Wrapper de linha que suporta acesso por índice (row[0]) e por nome
+    (row["campo"]), igual ao sqlite3.Row — assim o resto do código (routers,
+    CRUD helpers) funciona sem mudanças em cima de SQLite ou Postgres."""
+
+    __slots__ = ("_columns", "_values", "_map")
+
+    def __init__(self, columns, values):
+        self._columns = columns
+        self._values = tuple(values)
+        self._map = dict(zip(columns, values))
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._values[key]
+        return self._map[key]
+
+    def get(self, key, default=None):
+        return self._map.get(key, default)
+
+    def keys(self):
+        return list(self._columns)
+
+    def __iter__(self):
+        return iter(self._values)
+
+    def __contains__(self, key):
+        return key in self._map
+
+    def __repr__(self):
+        return f"Row({self._map!r})"
+
+
+class _PgCursorWrapper:
+    """Faz um cursor psycopg2 se comportar como o retorno de conn.execute()
+    do sqlite3: .fetchone() / .fetchall() retornando Row, e .rowcount."""
+
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def _columns(self):
+        return [d[0] for d in self._cursor.description] if self._cursor.description else []
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return Row(self._columns(), row)
+
+    def fetchall(self):
+        cols = self._columns()
+        return [Row(cols, r) for r in self._cursor.fetchall()]
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+
+class _PgConnWrapper:
+    """Faz uma conexão psycopg2 se comportar como uma conexão sqlite3:
+    conn.execute(sql, params) em vez de conn.cursor().execute(...)."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, query, params=None):
+        pg_query = _sqlite_to_pg(query)
+        cur = self._conn.cursor()
+        if params:
+            cur.execute(pg_query, tuple(params))
+        else:
+            cur.execute(pg_query)
+        return _PgCursorWrapper(cur)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
+_PLACEHOLDER_RE = re.compile(r"\?")
+
+
+def _sqlite_to_pg(query: str) -> str:
+    """Converte placeholders '?' (estilo sqlite3) para '%s' (estilo psycopg2).
+    Nenhuma query deste projeto usa '?' como texto literal, então a troca
+    direta é segura."""
+    return _PLACEHOLDER_RE.sub("%s", query)
+
+
+# Alias de exceção de integridade (nome único/violação de constraint),
+# usado nos blocos try/except deste módulo — aponta pra classe certa
+# dependendo do backend em uso.
+if IS_POSTGRES:
+    IntegrityError = psycopg2.errors.IntegrityError
+else:
+    IntegrityError = sqlite3.IntegrityError
+
 
 def get_db_connection():
+    if IS_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        return _PgConnWrapper(conn)
     os.makedirs(DB_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -113,10 +230,16 @@ def init_db():
             ("errors", "TEXT")
         ]
         for col_name, col_def in new_cols:
-            try:
-                conn.execute(f"ALTER TABLE trades ADD COLUMN {col_name} {col_def}")
-            except Exception:
-                pass
+            if IS_POSTGRES:
+                # IF NOT EXISTS evita erro (e evita abortar a transação
+                # inteira, que é o comportamento do Postgres em caso de
+                # exceção não tratada dentro de uma transação).
+                conn.execute(f"ALTER TABLE trades ADD COLUMN IF NOT EXISTS {col_name} {col_def}")
+            else:
+                try:
+                    conn.execute(f"ALTER TABLE trades ADD COLUMN {col_name} {col_def}")
+                except Exception:
+                    pass
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS risk_plans (
@@ -160,10 +283,13 @@ def init_db():
                 FOREIGN KEY (risk_plan_id) REFERENCES risk_plans(id) ON DELETE SET NULL
             )
         """)
-        try:
-            conn.execute("ALTER TABLE day_plan ADD COLUMN risk_plan_id TEXT")
-        except Exception:
-            pass
+        if IS_POSTGRES:
+            conn.execute("ALTER TABLE day_plan ADD COLUMN IF NOT EXISTS risk_plan_id TEXT")
+        else:
+            try:
+                conn.execute("ALTER TABLE day_plan ADD COLUMN risk_plan_id TEXT")
+            except Exception:
+                pass
 
         # Inserir conta padrão se não existir
         cur = conn.execute("SELECT COUNT(*) FROM accounts")
@@ -275,7 +401,10 @@ def init_db():
                 )
 
         conn.commit()
-        logger.info("Banco SQLite inicializado com sucesso: %s", DB_FILE)
+        if IS_POSTGRES:
+            logger.info("Banco Postgres inicializado com sucesso.")
+        else:
+            logger.info("Banco SQLite inicializado com sucesso: %s", DB_FILE)
     finally:
         conn.close()
 
@@ -567,7 +696,7 @@ def create_strategy(data: dict) -> dict:
         ))
         conn.commit()
         return get_strategy(sid)
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         raise ValueError(f"Já existe uma estratégia com o nome '{data['name']}'.")
     finally:
         conn.close()
@@ -621,7 +750,7 @@ def update_strategy(sid: str, data: dict) -> dict:
         ))
         conn.commit()
         return get_strategy(sid)
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         raise ValueError(f"Já existe uma estratégia com o nome '{data.get('name')}'.")
     finally:
         conn.close()
@@ -678,7 +807,7 @@ def create_risk_plan(data: dict) -> dict:
             conn.execute("UPDATE risk_plans SET is_active = 0 WHERE id != ?", (pid,))
         conn.commit()
         return get_risk_plan(pid)
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         raise ValueError(f"Já existe um GR com o nome '{data.get('name')}'.")
     finally:
         conn.close()
@@ -742,7 +871,7 @@ def update_risk_plan(pid: str, data: dict) -> dict:
             conn.execute("UPDATE risk_plans SET is_active = 0 WHERE id != ?", (pid,))
         conn.commit()
         return get_risk_plan(pid)
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         raise ValueError(f"Já existe um GR com o nome '{data.get('name')}'.")
     finally:
         conn.close()
