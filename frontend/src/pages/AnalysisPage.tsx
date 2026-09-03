@@ -22,11 +22,16 @@ import {
 } from '../api/client'
 import type { Account } from '../types'
 import { fmtUSD } from '../utils/format'
+import PatrimonyChart from '../components/PatrimonyChart'
+
+type Period = 'day' | '7d' | '30d' | 'custom'
 
 export default function AnalysisPage() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [selectedAcc, setSelectedAcc] = useState<string>('')
-  const [period, setPeriod] = useState<'all' | '7d' | '30d' | 'month'>('all')
+  const [period, setPeriod] = useState<Period>('30d')
+  const [customFrom, setCustomFrom] = useState<string>('')
+  const [customTo, setCustomTo] = useState<string>('')
 
   const [overview, setOverview] = useState<any>(null)
   const [equity, setEquity] = useState<any[]>([])
@@ -48,8 +53,14 @@ export default function AnalysisPage() {
 
   const loadAllStats = async () => {
     let fromDate: string | undefined
+    let toDate: string | undefined
     const now = new Date()
-    if (period === '7d') {
+    const today = now.toISOString().slice(0, 10)
+
+    if (period === 'day') {
+      fromDate = today
+      toDate = today
+    } else if (period === '7d') {
       const d = new Date()
       d.setDate(now.getDate() - 7)
       fromDate = d.toISOString().slice(0, 10)
@@ -57,11 +68,12 @@ export default function AnalysisPage() {
       const d = new Date()
       d.setDate(now.getDate() - 30)
       fromDate = d.toISOString().slice(0, 10)
-    } else if (period === 'month') {
-      fromDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    } else if (period === 'custom') {
+      fromDate = customFrom || undefined
+      toDate = customTo || undefined
     }
 
-    const params = { from: fromDate, account_id: selectedAcc || undefined }
+    const params = { from: fromDate, to: toDate, account_id: selectedAcc || undefined }
 
     try {
       const [ov, eq, ev, tn, cal, errs] = await Promise.all([
@@ -85,8 +97,11 @@ export default function AnalysisPage() {
   }
 
   useEffect(() => {
+    // No modo "Personalizado", só recarrega quando as duas datas estiverem
+    // preenchidas, pra não disparar buscas com um range incompleto.
+    if (period === 'custom' && (!customFrom || !customTo)) return
     loadAllStats()
-  }, [selectedAcc, period, selectedMonth, selectedYear])
+  }, [selectedAcc, period, selectedMonth, selectedYear, customFrom, customTo])
 
   return (
     <div className="space-y-8">
@@ -116,14 +131,14 @@ export default function AnalysisPage() {
           {/* Seletor de Período */}
           <div className="flex items-center gap-1 rounded-lg bg-surface-2 p-1 border border-border">
             {[
-              { id: 'all', label: 'Tudo' },
-              { id: '7d', label: '7 Dias' },
-              { id: '30d', label: '30 Dias' },
-              { id: 'month', label: 'Este Mês' },
+              { id: 'day', label: 'Diário' },
+              { id: '7d', label: 'Semanal' },
+              { id: '30d', label: 'Mensal' },
+              { id: 'custom', label: 'Personalizado' },
             ].map((p) => (
               <button
                 key={p.id}
-                onClick={() => setPeriod(p.id as any)}
+                onClick={() => setPeriod(p.id as Period)}
                 className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
                   period === p.id ? 'bg-accent text-bg' : 'text-text-secondary hover:text-text'
                 }`}
@@ -132,6 +147,25 @@ export default function AnalysisPage() {
               </button>
             ))}
           </div>
+
+          {/* Range customizado, só aparece no modo Personalizado */}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 border border-border">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="bg-transparent text-xs text-text focus:outline-none"
+              />
+              <span className="text-text-secondary text-xs">até</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="bg-transparent text-xs text-text focus:outline-none"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -153,30 +187,7 @@ export default function AnalysisPage() {
           </h2>
           <span className="text-xs text-text-secondary">{equity.length} trades analisados</span>
         </div>
-        <div className="h-48 flex items-end gap-1 pt-4 border-b border-border/50 overflow-x-auto">
-          {equity.map((pt, i) => {
-            const min = Math.min(...equity.map(e => e.accumulated), 0)
-            const max = Math.max(...equity.map(e => e.accumulated), 100)
-            const range = (max - min) || 1
-            const heightPct = Math.max(10, Math.min(100, ((pt.accumulated - min) / range) * 100))
-            const isPos = pt.accumulated >= 0
-
-            return (
-              <div key={i} className="flex-1 min-w-[12px] h-full flex flex-col justify-end items-center group relative">
-                <div
-                  style={{ height: `${(heightPct / 100) * 192}px` }}
-                  className={`w-full rounded-t transition-all ${isPos ? 'bg-up/70 group-hover:bg-up' : 'bg-down/70 group-hover:bg-down'}`}
-                />
-                {/* Tooltip */}
-                <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col rounded bg-surface-2 p-2 text-[10px] shadow-xl z-20 whitespace-nowrap border border-border">
-                  <span className="font-bold text-text">{pt.date} ({pt.asset})</span>
-                  <span className={pt.result >= 0 ? 'text-up font-semibold' : 'text-down font-semibold'}>Trade: {fmtUSD(pt.result)}</span>
-                  <span className="text-text font-mono">Acumulado: {fmtUSD(pt.accumulated)}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <PatrimonyChart data={equity} height={320} />
       </div>
 
       {/* Seção 2 Colunas: Análise por Evento & Por Ordem Cronológica */}
