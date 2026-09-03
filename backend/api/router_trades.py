@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from .. import db
+from .. import db, fx
 from ..models import TradeIn, TradeUpdate
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,38 @@ def _compute_pnl(payload: dict) -> dict:
     return data
 
 
+def _apply_currency_conversion(data: dict) -> dict:
+    """Se a operação foi digitada em reais (BRL), converte os valores
+    monetários para dólar (moeda padrão de armazenamento do sistema),
+    usando a cotação atual. Guarda a moeda original e a cotação usada
+    para referência/transparência, mas o valor armazenado (currency)
+    é sempre USD.
+
+    Se já estiver em USD (ou sem moeda informada), não faz nada além de
+    normalizar o campo currency para 'USD'.
+    """
+    currency = (data.get("currency") or "USD").upper()
+
+    if currency != "BRL":
+        data["currency"] = "USD"
+        data.setdefault("original_currency", None)
+        data.setdefault("fx_rate_used", None)
+        return data
+
+    fx_info = fx.get_usd_brl_rate()
+    rate = fx_info["rate"]
+
+    for field in ("result", "risk_amount", "fees"):
+        val = data.get(field)
+        if val is not None:
+            data[field] = fx.brl_to_usd(val, rate)
+
+    data["original_currency"] = "BRL"
+    data["fx_rate_used"] = rate
+    data["currency"] = "USD"
+    return data
+
+
 @router.get("/trades")
 def api_list_trades(
     from_date: str | None = Query(None, alias="from"),
@@ -70,6 +102,7 @@ def api_list_trades(
 def api_create_trade(payload: TradeIn):
     try:
         data = _compute_pnl(payload.model_dump())
+        data = _apply_currency_conversion(data)
         trade = db.create_trade(data)
         return {"status": "ok", "trade": trade}
     except HTTPException:
@@ -87,6 +120,7 @@ def api_update_trade(trade_id: str, payload: TradeUpdate):
             raise HTTPException(status_code=404, detail="Trade não encontrado.")
         merged = {**existing, **payload.model_dump(exclude_unset=True)}
         data = _compute_pnl(merged)
+        data = _apply_currency_conversion(data)
         trade = db.update_trade(trade_id, data)
         return {"status": "ok", "trade": trade}
     except HTTPException:

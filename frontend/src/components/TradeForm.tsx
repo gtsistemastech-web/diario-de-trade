@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { listAccounts, listOptions, listStrategies } from '../api/client'
+import { getFxRate, listAccounts, listOptions, listStrategies } from '../api/client'
 import type { Account, CustomOption, Strategy, Trade, TradeInput } from '../types'
 
 interface Props {
@@ -54,6 +54,23 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
   const [errorTypes, setErrorTypes] = useState<CustomOption[]>([])
   const [assetOptions, setAssetOptions] = useState<CustomOption[]>([])
 
+  // Moeda em que o usuário está digitando os valores monetários. O sistema
+  // sempre armazena em USD (padrão) — se for BRL, o backend converte
+  // automaticamente ao salvar, usando a cotação atual.
+  const [inputCurrency, setInputCurrency] = useState<'USD' | 'BRL'>('USD')
+  const [fxRate, setFxRate] = useState<number | null>(null)
+  const [fxLoading, setFxLoading] = useState(false)
+
+  useEffect(() => {
+    if (inputCurrency === 'BRL' && open) {
+      setFxLoading(true)
+      getFxRate()
+        .then((r) => setFxRate(r.rate))
+        .catch(() => setFxRate(null))
+        .finally(() => setFxLoading(false))
+    }
+  }, [inputCurrency, open])
+
   useEffect(() => {
     if (open) {
       Promise.all([
@@ -76,6 +93,10 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
         setAssetOptions(asts)
 
         if (editing) {
+          const wasBRL = editing.original_currency === 'BRL' && editing.fx_rate_used
+          const rate = editing.fx_rate_used ?? null
+          setInputCurrency(wasBRL ? 'BRL' : 'USD')
+          if (wasBRL) setFxRate(rate)
           setForm({
             date: editing.date,
             time: editing.time ?? '',
@@ -84,16 +105,19 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
             entry_price: editing.entry_price,
             exit_price: editing.exit_price,
             quantity: editing.quantity,
-            result: editing.result,
-            fees: editing.fees,
-            risk_amount: editing.risk_amount,
+            // Se a operação foi originalmente digitada em reais, mostra de
+            // volta em reais (multiplicando pela cotação usada na época),
+            // para o usuário editar no mesmo formato que digitou.
+            result: wasBRL && editing.result != null ? Math.round(editing.result * rate! * 100) / 100 : editing.result,
+            fees: wasBRL && editing.fees ? Math.round(editing.fees * rate! * 100) / 100 : editing.fees,
+            risk_amount: wasBRL && editing.risk_amount != null ? Math.round(editing.risk_amount * rate! * 100) / 100 : editing.risk_amount,
             emotions: editing.emotions,
             notes: editing.notes ?? '',
             strategy_id: editing.strategy_id ?? null,
             added_lots: editing.added_lots ?? null,
             candle_size: editing.candle_size ?? null,
             account_id: editing.account_id ?? null,
-            currency: editing.currency ?? 'USD',
+            currency: wasBRL ? 'BRL' : 'USD',
             event_id: editing.event_id ?? null,
             context_id: editing.context_id ?? null,
             location_id: editing.location_id ?? null,
@@ -107,10 +131,12 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
           setUsePrices(Boolean(editing.entry_price && editing.exit_price && editing.quantity))
         } else {
           const activeAcc = accs.find((a) => a.is_active)
+          const defaultCurrency: 'USD' | 'BRL' = activeAcc?.currency === 'BRL' ? 'BRL' : 'USD'
+          setInputCurrency(defaultCurrency)
           setForm({
             ...emptyForm(),
             account_id: activeAcc?.id ?? null,
-            currency: activeAcc?.currency ?? 'USD',
+            currency: defaultCurrency,
             asset: asts.length > 0 ? asts[0].code || asts[0].name : 'EURUSD',
           })
           setUsePrices(true)
@@ -172,17 +198,49 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
+          <div className="rounded-lg border border-border bg-surface-2 p-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <label className="label mb-1">Moeda de Digitação</label>
+                <div className="flex gap-1 rounded-lg bg-surface p-1">
+                  {(['USD', 'BRL'] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => {
+                        setInputCurrency(c)
+                        set('currency', c)
+                      }}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                        inputCurrency === c ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:text-text'
+                      }`}
+                    >
+                      {c === 'USD' ? 'US$ Dólar' : 'R$ Real'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {inputCurrency === 'BRL' && (
+                <div className="text-xs text-text-secondary">
+                  {fxLoading ? (
+                    'Buscando cotação...'
+                  ) : fxRate ? (
+                    <>Cotação: <span className="font-mono text-text">R$ {fxRate.toFixed(2)}</span> = US$ 1,00 — os valores serão convertidos e salvos em dólar (padrão do sistema).</>
+                  ) : (
+                    'Não foi possível obter a cotação agora — será buscada novamente ao salvar.'
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Conta de Corretora</label>
               <select
                 className="input"
                 value={form.account_id ?? ''}
-                onChange={(e) => {
-                  const acc = accounts.find((a) => a.id === e.target.value)
-                  set('account_id', e.target.value || null)
-                  if (acc) set('currency', acc.currency)
-                }}
+                onChange={(e) => set('account_id', e.target.value || null)}
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
@@ -348,7 +406,7 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
               </div>
             </div>
             <div>
-              <label className="label">Risco da Operação ({form.currency})</label>
+              <label className="label">Risco da Operação ({inputCurrency === 'BRL' ? 'R$' : 'US$'})</label>
               <input
                 type="number"
                 step="any"
@@ -357,18 +415,21 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
                 onChange={(e) => set('risk_amount', e.target.value === '' ? null : Number(e.target.value))}
                 placeholder="Ex: 150"
               />
+              {inputCurrency === 'BRL' && fxRate && form.risk_amount != null && (
+                <p className="mt-1 text-xs text-text-secondary">≈ US$ {(form.risk_amount / fxRate).toFixed(2)}</p>
+              )}
             </div>
           </div>
 
           <div className="space-y-2 border-t border-border/50 pt-3">
             <div className="flex items-center justify-between">
-              <label className="label">Resultado Financeiro P&L ({form.currency})</label>
+              <label className="label">Resultado Financeiro P&L ({inputCurrency === 'BRL' ? 'R$' : 'US$'})</label>
               <button
                 type="button"
                 onClick={() => setUsePrices(!usePrices)}
                 className="text-xs text-accent hover:underline"
               >
-                {usePrices ? 'Digitar R$ / $ resultado direto' : 'Calcular a partir dos preços'}
+                {usePrices ? 'Digitar resultado direto' : 'Calcular a partir dos preços'}
               </button>
             </div>
 
@@ -396,6 +457,9 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
                   placeholder="Ex: 350.00 ou -150.00"
                   required
                 />
+                {inputCurrency === 'BRL' && fxRate && form.result != null && (
+                  <p className="mt-1 text-xs text-text-secondary">≈ US$ {(form.result / fxRate).toFixed(2)}</p>
+                )}
               </div>
             )}
           </div>

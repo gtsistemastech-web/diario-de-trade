@@ -197,6 +197,8 @@ def init_db():
                 candle_size TEXT,                   -- Pequeno | Médio | Grande (nullable)
                 account_id TEXT,
                 currency TEXT DEFAULT 'USD',
+                original_currency TEXT,             -- moeda em que o usuário digitou (se BRL, foi convertido)
+                fx_rate_used REAL,                  -- cotação USD/BRL usada na conversão (se houve)
                 event_id TEXT,
                 context_id TEXT,
                 location_id TEXT,
@@ -219,6 +221,8 @@ def init_db():
             ("candle_size", "TEXT"),
             ("account_id", "TEXT"),
             ("currency", "TEXT DEFAULT 'USD'"),
+            ("original_currency", "TEXT"),
+            ("fx_rate_used", "REAL"),
             ("event_id", "TEXT"),
             ("context_id", "TEXT"),
             ("location_id", "TEXT"),
@@ -466,21 +470,23 @@ def create_trade(data: dict) -> dict:
         
         # Se account_id não for fornecido, pega a conta ativa padrão
         account_id = data.get("account_id")
-        currency = data.get("currency", "USD")
+        currency = data.get("currency") or "USD"
         if not account_id:
             active_acc = conn.execute("SELECT id, currency FROM accounts WHERE is_active = 1 LIMIT 1").fetchone()
             if active_acc:
                 account_id = active_acc["id"]
-                currency = active_acc["currency"]
+                if not data.get("currency"):
+                    currency = active_acc["currency"]
 
         conn.execute("""
             INSERT INTO trades (id, date, time, asset, direction, entry_price, exit_price,
                                 quantity, result, fees, r_multiple, risk_amount, emotions,
                                 notes, strategy_id, source, added_lots, candle_size,
-                                account_id, currency, event_id, context_id, location_id,
+                                account_id, currency, original_currency, fx_rate_used,
+                                event_id, context_id, location_id,
                                 clean_left, first_bar, entry_type, has_addition, outcome_type, errors,
                                 created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             trade_id,
             data["date"],
@@ -502,6 +508,8 @@ def create_trade(data: dict) -> dict:
             data.get("candle_size"),
             account_id,
             currency,
+            data.get("original_currency"),
+            data.get("fx_rate_used"),
             data.get("event_id"),
             data.get("context_id"),
             data.get("location_id"),
@@ -591,6 +599,7 @@ def update_trade(trade_id: str, data: dict) -> dict:
                     "quantity", "result", "fees", "r_multiple", "risk_amount",
                     "emotions", "notes", "strategy_id", "source",
                     "added_lots", "candle_size", "account_id", "currency",
+                    "original_currency", "fx_rate_used",
                     "event_id", "context_id", "location_id", "clean_left",
                     "first_bar", "entry_type", "has_addition", "outcome_type", "errors"):
             if key in data:
@@ -601,6 +610,7 @@ def update_trade(trade_id: str, data: dict) -> dict:
                               quantity=?, result=?, fees=?, r_multiple=?, risk_amount=?,
                               emotions=?, notes=?, strategy_id=?, source=?,
                               added_lots=?, candle_size=?, account_id=?, currency=?,
+                              original_currency=?, fx_rate_used=?,
                               event_id=?, context_id=?, location_id=?, clean_left=?,
                               first_bar=?, entry_type=?, has_addition=?, outcome_type=?, errors=?, updated_at=?
             WHERE id=?
@@ -613,6 +623,7 @@ def update_trade(trade_id: str, data: dict) -> dict:
             merged.get("source", "manual"),
             merged.get("added_lots", 0), merged.get("candle_size"),
             merged.get("account_id"), merged.get("currency", "USD"),
+            merged.get("original_currency"), merged.get("fx_rate_used"),
             merged.get("event_id"), merged.get("context_id"), merged.get("location_id"),
             1 if merged.get("clean_left") else 0,
             1 if merged.get("first_bar") else 0,

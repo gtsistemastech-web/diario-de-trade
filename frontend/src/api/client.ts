@@ -32,6 +32,9 @@ export const listOptions = (category?: string) => request<CustomOption[]>(`/opti
 export const createOption = (opt: CustomOptionInput) => request<CustomOption>('/options', { method: 'POST', body: JSON.stringify(opt) })
 export const deleteOption = (id: string) => request<void>(`/options/${id}`, { method: 'DELETE' })
 
+// ---- Câmbio (FX) ----
+export const getFxRate = () => request<{ rate: number; date: string | null; cached: boolean; stale?: boolean; fallback?: boolean }>('/fx/usd-brl')
+
 // ---- Trades ----
 export const listTrades = (params?: { from?: string; to?: string; asset?: string; direction?: string; source?: string; strategy_id?: string; account_id?: string; event_id?: string }) => {
   const qs = new URLSearchParams()

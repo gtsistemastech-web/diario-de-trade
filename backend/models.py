@@ -1,4 +1,3 @@
-import datetime
 from datetime import date
 from typing import List, Optional, Literal
 
@@ -84,7 +83,7 @@ class TradeIn(BaseModel):
 
 
 class TradeUpdate(BaseModel):
-    date: Optional[datetime.date] = None
+    date: Optional[date] = None
     time: Optional[str] = None
     asset: Optional[str] = None
     direction: Optional[Direction] = None
@@ -136,6 +135,8 @@ class TradeOut(BaseModel):
     account_id: Optional[str] = None
     account_name: Optional[str] = None
     currency: str = "USD"
+    original_currency: Optional[str] = None
+    fx_rate_used: Optional[float] = None
     event_id: Optional[str] = None
     event_name: Optional[str] = None
     context_id: Optional[str] = None

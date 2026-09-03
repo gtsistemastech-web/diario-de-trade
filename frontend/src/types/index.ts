@@ -74,6 +74,8 @@ export interface Trade {
   account_id?: string | null
   account_name?: string | null
   currency: string
+  original_currency?: string | null
+  fx_rate_used?: number | null
   event_id?: string | null
   event_name?: string | null
   context_id?: string | null

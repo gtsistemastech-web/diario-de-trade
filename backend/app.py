@@ -108,6 +108,9 @@ def _register_all_routers(app: FastAPI):
     from .api.router_options import router as options_router
     app.include_router(options_router)
 
+    from .api.router_fx import router as fx_router
+    app.include_router(fx_router, prefix="/api")
+
 
 # ---- App construction (order matters: routes before mount) ----
 app = FastAPI(title="Diário de Trader API", lifespan=lifespan)
