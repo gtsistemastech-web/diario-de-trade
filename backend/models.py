@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date as _Date
 from typing import List, Optional, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -41,7 +41,7 @@ class CustomOptionOut(BaseModel):
 
 
 class TradeIn(BaseModel):
-    date: date
+    date: _Date
     time: Optional[str] = None
     asset: str = Field(min_length=1, max_length=40)
     direction: Direction
@@ -83,7 +83,7 @@ class TradeIn(BaseModel):
 
 
 class TradeUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[_Date] = None
     time: Optional[str] = None
     asset: Optional[str] = None
     direction: Optional[Direction] = None
@@ -155,7 +155,7 @@ class TradeOut(BaseModel):
 
 class JournalIn(BaseModel):
     trade_id: Optional[str] = None
-    date: date
+    date: _Date
     mood_score: Optional[int] = Field(default=None, ge=1, le=10)
     emotions: Optional[List[str]] = None
     discipline_rating: Optional[int] = Field(default=None, ge=1, le=10)
@@ -177,7 +177,7 @@ class JournalOut(BaseModel):
 
 
 class DayPlanIn(BaseModel):
-    date: date
+    date: _Date
     scenarios: Optional[List[dict]] = None
     goals: Optional[List[dict]] = None
     levels: Optional[List[dict]] = None
@@ -252,7 +252,7 @@ class RiskPlanOut(BaseModel):
 
 
 class RiskBindIn(BaseModel):
-    date: date
+    date: _Date
     risk_plan_id: Optional[str] = None
 
 
