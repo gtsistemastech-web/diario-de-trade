@@ -162,9 +162,9 @@ export default function AnalysisPage() {
             const isPos = pt.accumulated >= 0
 
             return (
-              <div key={i} className="flex-1 min-w-[12px] flex flex-col items-center group relative">
+              <div key={i} className="flex-1 min-w-[12px] h-full flex flex-col justify-end items-center group relative">
                 <div
-                  style={{ height: `${heightPct}%` }}
+                  style={{ height: `${(heightPct / 100) * 192}px` }}
                   className={`w-full rounded-t transition-all ${isPos ? 'bg-up/70 group-hover:bg-up' : 'bg-down/70 group-hover:bg-down'}`}
                 />
                 {/* Tooltip */}
