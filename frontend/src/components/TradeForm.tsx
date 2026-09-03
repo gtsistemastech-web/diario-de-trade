@@ -354,7 +354,16 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
                   <button
                     key={o}
                     type="button"
-                    onClick={() => set('outcome_type', o)}
+                    onClick={() => {
+                      set('outcome_type', o)
+                      // Ajusta o sinal do resultado digitado para bater com o
+                      // botão clicado (GAIN=positivo, LOSS=negativo, ZERO=0),
+                      // evitando o erro de marcar "LOSS" com um valor positivo.
+                      if (form.result != null) {
+                        const abs = Math.abs(form.result)
+                        set('result', o === 'GAIN' ? abs : o === 'LOSS' ? -abs : 0)
+                      }
+                    }}
                     className={`rounded-md py-1 text-xs font-semibold transition-colors ${
                       form.outcome_type === o
                         ? o === 'GAIN' ? 'bg-up/20 text-up' : o === 'LOSS' ? 'bg-down/20 text-down' : 'bg-accent/20 text-accent'
@@ -453,7 +462,15 @@ export default function TradeForm({ open, onClose, onSave, editing }: Props) {
                   step="any"
                   className="input font-mono font-bold"
                   value={form.result ?? ''}
-                  onChange={(e) => set('result', e.target.value === '' ? null : Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? null : Number(e.target.value)
+                    set('result', val)
+                    // Mantém o botão GAIN/LOSS/ZERO sincronizado com o sinal
+                    // digitado, para nunca ficar "LOSS" com valor positivo (ou vice-versa).
+                    if (val != null) {
+                      set('outcome_type', val > 0 ? 'GAIN' : val < 0 ? 'LOSS' : 'ZERO')
+                    }
+                  }}
                   placeholder="Ex: 350.00 ou -150.00"
                   required
                 />

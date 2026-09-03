@@ -49,6 +49,17 @@ def _compute_pnl(payload: dict) -> dict:
 
     data["result"] = round(result, 2)
     data["r_multiple"] = r_multiple
+
+    # Trava de segurança: outcome_type sempre reflete o sinal real do
+    # resultado (nunca é apenas um rótulo solto que pode ficar
+    # dessincronizado do valor, seja qual for a origem — manual, CSV, etc.).
+    if data["result"] > 0:
+        data["outcome_type"] = "GAIN"
+    elif data["result"] < 0:
+        data["outcome_type"] = "LOSS"
+    else:
+        data["outcome_type"] = "ZERO"
+
     return data
 
 
