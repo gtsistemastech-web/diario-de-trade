@@ -27,6 +27,20 @@ def api_stats_overview(
     account_id: str | None = None,
 ):
     trades = db.list_trades(from_date=from_date, to_date=to_date, account_id=account_id)
+
+    # Capital inicial: soma das contas selecionadas (ou de todas, se nenhuma
+    # conta específica for filtrada), usado para o "Retorno sobre o Capital".
+    conn = db.get_db_connection()
+    try:
+        if account_id:
+            row = conn.execute("SELECT initial_balance FROM accounts WHERE id = ?", (account_id,)).fetchone()
+            initial_balance = (row["initial_balance"] if row else 0.0) or 0.0
+        else:
+            rows = conn.execute("SELECT initial_balance FROM accounts").fetchall()
+            initial_balance = sum((r["initial_balance"] or 0.0) for r in rows)
+    finally:
+        conn.close()
+
     if not trades:
         return {
             "total_trades": 0,
@@ -43,6 +57,18 @@ def api_stats_overview(
             "avg_risk": 0.0,
             "max_gain": 0.0,
             "max_loss": 0.0,
+            "gross_profit": 0.0,
+            "gross_loss": 0.0,
+            "total_fees": 0.0,
+            "max_quantity": 0,
+            "max_win_streak": 0,
+            "max_loss_streak": 0,
+            "max_drawdown": 0.0,
+            "max_drawdown_days": 0,
+            "max_drawdown_pct": 0.0,
+            "peak_equity": 0.0,
+            "initial_balance": round(initial_balance, 2),
+            "return_pct": 0.0,
         }
 
     total_trades = len(trades)
@@ -75,6 +101,17 @@ def api_stats_overview(
     max_gain = max([t["result"] for t in trades], default=0.0)
     max_loss = min([t["result"] for t in trades], default=0.0)
 
+    total_fees = sum((t.get("fees") or 0) for t in trades)
+    quantities = [t["quantity"] for t in trades if t.get("quantity")]
+    max_quantity = max(quantities) if quantities else 0
+
+    streaks = metrics.consecutive_streaks(trades)
+    dd = metrics.max_drawdown(trades)
+    peak_equity = dd["peak_equity"]
+    max_drawdown_pct = round((dd["max_drawdown"] / peak_equity) * 100, 2) if peak_equity > 0 else 0.0
+
+    return_pct = round((total_pnl / initial_balance) * 100, 2) if initial_balance > 0 else 0.0
+
     return {
         "total_trades": total_trades,
         "total_pnl": round(total_pnl, 2),
@@ -90,6 +127,18 @@ def api_stats_overview(
         "avg_risk": avg_risk,
         "max_gain": round(max_gain, 2),
         "max_loss": round(max_loss, 2),
+        "gross_profit": round(gross_profit, 2),
+        "gross_loss": round(-gross_loss, 2),
+        "total_fees": round(total_fees, 2),
+        "max_quantity": max_quantity,
+        "max_win_streak": streaks["max_win_streak"],
+        "max_loss_streak": streaks["max_loss_streak"],
+        "max_drawdown": round(-dd["max_drawdown"], 2),
+        "max_drawdown_days": dd["max_drawdown_days"],
+        "max_drawdown_pct": max_drawdown_pct,
+        "peak_equity": peak_equity,
+        "initial_balance": round(initial_balance, 2),
+        "return_pct": return_pct,
     }
 
 

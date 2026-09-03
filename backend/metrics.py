@@ -99,7 +99,7 @@ def max_drawdown(trades):
             if dd > max_dd:
                 max_dd = dd
                 max_dd_days = dd_days
-    return {"max_drawdown": round(max_dd, 2), "max_drawdown_days": max_dd_days}
+    return {"max_drawdown": round(max_dd, 2), "max_drawdown_days": max_dd_days, "peak_equity": round(peak, 2)}
 
 
 def total_pnl(trades):

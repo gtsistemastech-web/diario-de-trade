@@ -190,6 +190,54 @@ export default function AnalysisPage() {
         <PatrimonyChart data={equity} height={320} />
       </div>
 
+      {/* Relatório Completo de Performance (estilo Profit) */}
+      {overview && (
+        <div className="card space-y-4">
+          <h2 className="font-display text-base font-bold text-text flex items-center gap-2">
+            <BarChart2 className="text-accent" size={18} /> Relatório Completo de Performance
+          </h2>
+          <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+            <ReportRow label="Saldo Líquido Total" value={fmtUSD(overview.total_pnl)} valueClass={overview.total_pnl >= 0 ? 'text-up' : 'text-down'} />
+            <ReportRow label="Retorno sobre Capital Inicial" value={`${overview.return_pct}%`} valueClass={overview.return_pct >= 0 ? 'text-up' : 'text-down'} />
+
+            <ReportRow label="Lucro Bruto" value={fmtUSD(overview.gross_profit)} valueClass="text-up" />
+            <ReportRow label="Prejuízo Bruto" value={fmtUSD(overview.gross_loss)} valueClass="text-down" />
+
+            <ReportRow label="Fator de Lucro" value={overview.profit_factor} />
+            <ReportRow label="Custos (Taxas)" value={fmtUSD(-overview.total_fees)} valueClass="text-down" />
+
+            <ReportRow label="Número Total de Operações" value={overview.total_trades} />
+            <ReportRow label="Percentual de Operações Vencedoras" value={`${overview.win_rate}%`} />
+
+            <ReportRow label="Operações Vencedoras" value={overview.positive_trades} valueClass="text-up" />
+            <ReportRow label="Operações Perdedoras" value={overview.negative_trades} valueClass="text-down" />
+
+            <ReportRow label="Operações Zeradas" value={overview.zero_trades} />
+            <ReportRow label="Razão Média Lucro:Prejuízo" value={overview.payoff} />
+
+            <ReportRow label="Média de Lucro/Prejuízo" value={fmtUSD(overview.total_pnl / (overview.total_trades || 1))} />
+            <ReportRow label="Média de Operações Vencedoras" value={fmtUSD(overview.avg_gain)} valueClass="text-up" />
+
+            <ReportRow label="Média de Operações Perdedoras" value={fmtUSD(-overview.avg_loss)} valueClass="text-down" />
+            <ReportRow label="Maior Operação Vencedora" value={fmtUSD(overview.max_gain)} valueClass="text-up" />
+
+            <ReportRow label="Maior Operação Perdedora" value={fmtUSD(overview.max_loss)} valueClass="text-down" />
+            <ReportRow label="Maior Sequência Vencedora" value={overview.max_win_streak} valueClass="text-up" />
+
+            <ReportRow label="Maior Sequência Perdedora" value={overview.max_loss_streak} valueClass="text-down" />
+            <ReportRow label="Máximo de Contratos/Lotes numa Operação" value={overview.max_quantity || '—'} />
+
+            <ReportRow label="Patrimônio Máximo" value={fmtUSD(overview.peak_equity)} />
+            <ReportRow label="Risco Médio por Operação" value={fmtUSD(overview.avg_risk)} />
+
+            <div className="sm:col-span-2 my-1 border-t border-border/50" />
+
+            <ReportRow label="Declínio Máximo (Topo ao Fundo)" value={fmtUSD(overview.max_drawdown)} valueClass="text-down" />
+            <ReportRow label="Declínio Máximo (%)" value={`${overview.max_drawdown_pct}%`} valueClass="text-down" />
+          </div>
+        </div>
+      )}
+
       {/* Seção 2 Colunas: Análise por Evento & Por Ordem Cronológica */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Desempenho por Evento de Entrada */}
@@ -316,6 +364,15 @@ function KpiCard({ title, value, subtext, highlight, icon: Icon }: any) {
         {value}
       </div>
       {subtext && <div className="text-[10px] text-text-secondary">{subtext}</div>}
+    </div>
+  )
+}
+
+function ReportRow({ label, value, valueClass }: { label: string; value: string | number; valueClass?: string }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b border-border/30 text-sm">
+      <span className="text-text-secondary">{label}</span>
+      <span className={`font-mono font-semibold ${valueClass ?? 'text-text'}`}>{value}</span>
     </div>
   )
 }
