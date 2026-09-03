@@ -1,3 +1,4 @@
+import datetime
 from datetime import date
 from typing import List, Optional, Literal
 
@@ -83,7 +84,7 @@ class TradeIn(BaseModel):
 
 
 class TradeUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[datetime.date] = None
     time: Optional[str] = None
     asset: Optional[str] = None
     direction: Optional[Direction] = None
